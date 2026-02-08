@@ -1,0 +1,10 @@
+.cursor
+.cursorrules.md
+.vscode
+zig-cache
+zig-out
+.zig-cache
+.zig-out
+.build.zig.zon
+build.zig
+build.zig.zon

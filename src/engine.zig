@@ -1,3 +1,5 @@
+// TO-DO: Finish opcode system and move to phase 2.
+
 const std = @import("std");
 const StackError = error{ StackOverflow, EmptyStack, IndexOutOfRange };
 
@@ -14,12 +16,12 @@ pub const EVM = struct {
         switch (opcode) {
             // 0x00 range
             0x00 => return, // STOP
-            0x01 => return, // ADD
-            0x02 => return, // MUL
-            0x03 => return, // SUB
-            0x04 => return, // DIV
+            0x01 => self.stack._add(), // ADD
+            0x02 => self.stack._mul(), // MUL
+            0x03 => self.stack._sub(), // SUB
+            0x04 => self.stack._div(), // DIV
             0x05 => return, // SDIV
-            0x06 => return, // MOD
+            0x06 => self.stack._mod(), // MOD
             0x07 => return, // SMOD
             0x08 => return, // ADDMOD
             0x09 => return, // MULMOD
@@ -201,12 +203,14 @@ const Stack = struct {
         self.words[self.height] = word;
         self.height += 1;
     }
-    fn _pop(self: *Stack) !void {
+    fn _pop(self: *Stack) !u256 {
         if (self.height == 0) {
             return error.EmptyStack;
         }
+        const ret: u256 = self.words[self.height - 1];
         self.words[self.height - 1] = undefined;
         self.height -= 1;
+        return ret;
     }
     fn _dup(self: *Stack) !StackError {
         if (self.height == 0) {
@@ -215,52 +219,68 @@ const Stack = struct {
         const dup: u256 = self.words[self.height - 1];
         try self._push(dup);
     }
-    fn _swap(self: *Stack, a: usize, b: usize) !void {
-        if (a >= self.height or b >= self.height) {
+    fn _swap(self: *Stack, n: usize) !void {
+        if (n >= self.height) {
             return error.IndexOutOfRange;
         }
-        const temp: u256 = self.words[a];
-        self.words[a] = self.words[b];
-        self.words[b] = temp;
+        const temp: u256 = self.words[self.height - 1 - n];
+        self.words[self.height - 1 - n] = self.words[self.height - 1];
+        self.words[self.height - 1] = temp;
     }
     //basic arithmetic
-    fn _add(self: *Stack, a: u256, b: u256) !void {
+    fn _add(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a + b);
     }
-    fn _sub(self: *Stack, a: u256, b: u256) !void {
+    fn _sub(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a - b);
     }
-    fn _mul(self: *Stack, a: u256, b: u256) !void {
+    fn _mul(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a * b);
     }
-    fn _div(self: *Stack, a: u256, b: u256) !void {
+    fn _div(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         if (b == 0) {
             return try self._push(0);
         }
         return try self._push(a / b);
     }
-    fn _mod(self: *Stack, a: u256, b: u256) !void {
+    fn _mod(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         if (b == 0) {
             return try self._push(0);
         }
         return try self._push(a % b);
     }
     //comparison
-    fn _lt(self: *Stack, a: u256, b: u256) !void {
+    fn _lt(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         if (a < b) {
             try self._push(1);
         } else {
             try self._push(0);
         }
     }
-    fn _gt(self: *Stack, a: u256, b: u256) !void {
+    fn _gt(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         if (a > b) {
             try self._push(1);
         } else {
             try self._push(0);
         }
     }
-    fn _eq(self: *Stack, a: u256, b: u256) !void {
+    fn _eq(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         if (a == b) {
             try self._push(1);
         } else {
@@ -268,16 +288,23 @@ const Stack = struct {
         }
     }
     //bitwise operations
-    fn _and(self: *Stack, a: u256, b: u256) !void {
+    fn _and(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a & b);
     }
-    fn _or(self: *Stack, a: u256, b: u256) !void {
+    fn _or(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a | b);
     }
-    fn _xor(self: *Stack, a: u256, b: u256) !void {
+    fn _xor(self: *Stack) !void {
+        const a: u256 = self._pop();
+        const b: u256 = self._pop();
         return try self._push(a ^ b);
     }
-    fn _not(self: *Stack, a: u256) !void {
+    fn _not(self: *Stack) !void {
+        const a: u256 = self._pop();
         return try self._push(~a);
     }
 };
