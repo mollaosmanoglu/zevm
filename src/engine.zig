@@ -1,13 +1,7 @@
-// TO-DO: add instruction length for pc counter and move to phase 2
+// TO-DO: create small test, understadn everything better, and move to phase 2.
 
 const std = @import("std");
-pub const EVMError = error{
-    StopToken,
-    InvalidOpcode,
-    StackOverflow,
-    EmptyStack,
-    IndexOutOfRange,
-};
+pub const EVMError = error{ StopToken, InvalidOpcode, StackOverflow, StackUnderflow, IndexOutOfRange };
 
 pub const EVM = struct {
     code: []const u8,
@@ -17,7 +11,11 @@ pub const EVM = struct {
 
     // interpreter
     pub fn step(self: *EVM) EVMError!void {
+        if (self.pc >= self.code.len - 1) {
+            return error.InvalidOpcode;
+        }
         const opcode: u8 = self.code[self.pc];
+        var pc_changed: bool = false;
 
         switch (opcode) {
             // 0x00 range
@@ -85,7 +83,7 @@ pub const EVM = struct {
             0x4a => return, // BLOBBASEFEE
 
             // 0x50 range: stack, memory, storage, and flow
-            0x50 => return, // POP
+            0x50 => try self.stack._pop(), // POP
             0x51 => return, // MLOAD
             0x52 => return, // MSTORE
             0x53 => return, // MSTORE8
@@ -100,78 +98,35 @@ pub const EVM = struct {
             0x5c => return, // TLOAD
             0x5d => return, // TSTORE
             0x5e => return, // MCOPY
-            0x5f => return, // PUSH0
+            0x5f => try self.stack._push(0), // PUSH0
 
             // 0x60–0x7f: PUSH1–PUSH32
-            0x60 => return, // PUSH1
-            0x61 => return, // PUSH2
-            0x62 => return, // PUSH3
-            0x63 => return, // PUSH4
-            0x64 => return, // PUSH5
-            0x65 => return, // PUSH6
-            0x66 => return, // PUSH7
-            0x67 => return, // PUSH8
-            0x68 => return, // PUSH9
-            0x69 => return, // PUSH10
-            0x6a => return, // PUSH11
-            0x6b => return, // PUSH12
-            0x6c => return, // PUSH13
-            0x6d => return, // PUSH14
-            0x6e => return, // PUSH15
-            0x6f => return, // PUSH16
-            0x70 => return, // PUSH17
-            0x71 => return, // PUSH18
-            0x72 => return, // PUSH19
-            0x73 => return, // PUSH20
-            0x74 => return, // PUSH21
-            0x75 => return, // PUSH22
-            0x76 => return, // PUSH23
-            0x77 => return, // PUSH24
-            0x78 => return, // PUSH25
-            0x79 => return, // PUSH26
-            0x7a => return, // PUSH27
-            0x7b => return, // PUSH28
-            0x7c => return, // PUSH29
-            0x7d => return, // PUSH30
-            0x7e => return, // PUSH31
-            0x7f => return, // PUSH32
+            0x60...0x7f => {
+                const n: usize = opcode - 0x60 + 1;
+                if (self.pc + 1 + n > self.code.len) {
+                    return error.IndexOutOfRange;
+                }
+                const slice: []const u8 = self.code[(self.pc + 1)..(self.pc + n + 1)];
+                var value: u256 = 0;
+                for (slice) |b| {
+                    value = (value << 8) + @as(u256, b);
+                }
+                try self.stack._push(value);
+                self.pc = self.pc + n + 1;
+                pc_changed = true;
+            },
 
             // 0x80–0x8f: DUP1–DUP16
-            0x80 => return, // DUP1
-            0x81 => return, // DUP2
-            0x82 => return, // DUP3
-            0x83 => return, // DUP4
-            0x84 => return, // DUP5
-            0x85 => return, // DUP6
-            0x86 => return, // DUP7
-            0x87 => return, // DUP8
-            0x88 => return, // DUP9
-            0x89 => return, // DUP10
-            0x8a => return, // DUP11
-            0x8b => return, // DUP12
-            0x8c => return, // DUP13
-            0x8d => return, // DUP14
-            0x8e => return, // DUP15
-            0x8f => return, // DUP16
+            0x80...0x8f => {
+                const n: usize = opcode - 0x80 + 1;
+                try self.stack._dup(n);
+            },
 
             // 0x90–0x9f: SWAP1–SWAP16
-            0x90 => return, // SWAP1
-            0x91 => return, // SWAP2
-            0x92 => return, // SWAP3
-            0x93 => return, // SWAP4
-            0x94 => return, // SWAP5
-            0x95 => return, // SWAP6
-            0x96 => return, // SWAP7
-            0x97 => return, // SWAP8
-            0x98 => return, // SWAP9
-            0x99 => return, // SWAP10
-            0x9a => return, // SWAP11
-            0x9b => return, // SWAP12
-            0x9c => return, // SWAP13
-            0x9d => return, // SWAP14
-            0x9e => return, // SWAP15
-            0x9f => return, // SWAP16
-
+            0x90...0x9f => {
+                const n: usize = opcode - 0x90 + 1;
+                try self.stack._swap(n);
+            },
             // 0xa0–0xa4: LOG0–LOG4
             0xa0 => return, // LOG0
             0xa1 => return, // LOG1
@@ -193,6 +148,9 @@ pub const EVM = struct {
 
             // undefined / reserved opcodes
             else => return error.InvalidOpcode,
+        }
+        if (pc_changed == false) {
+            self.pc += 1;
         }
     }
     pub fn run(self: *EVM) EVMError!void {
@@ -221,22 +179,22 @@ const Stack = struct {
     }
     fn _pop(self: *Stack) EVMError!u256 {
         if (self.height == 0) {
-            return error.EmptyStack;
+            return error.StackUnderflow;
         }
         const ret: u256 = self.words[self.height - 1];
         self.words[self.height - 1] = undefined;
         self.height -= 1;
         return ret;
     }
-    fn _dup(self: *Stack) EVMError!void {
-        if (self.height == 0) {
-            return error.EmptyStack;
+    fn _dup(self: *Stack, n: usize) EVMError!void {
+        if (self.height == 0 or self.height < n) {
+            return error.StackUnderflow;
         }
-        const dup: u256 = self.words[self.height - 1];
+        const dup: u256 = self.words[self.height - n];
         try self._push(dup);
     }
     fn _swap(self: *Stack, n: usize) EVMError!void {
-        if (n >= self.height or self.height < n + 1) {
+        if (self.height <= n) {
             return error.IndexOutOfRange;
         }
         const temp: u256 = self.words[self.height - 1 - n];
@@ -324,3 +282,5 @@ const Stack = struct {
         return try self._push(~a);
     }
 };
+
+test "run" {}
