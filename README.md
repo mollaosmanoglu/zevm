@@ -58,6 +58,75 @@ try evm.execute(&bytecode);
 
 See [evm.codes](https://evm.codes) for full opcode reference.
 
+## Architecture
+
+```
+[User Input]                    [System Boundary: zevm]                    [EVM Spec]
+
+┌──────────────┐                                                    ┌───────────────┐
+│   Terminal   │                                                    │ Ethereum      │
+│              │                                                    │ Yellow Paper  │
+│ $ zig build  │                                                    │               │
+│   run --     │                                                    │ evm.codes     │
+│   contract   │                                                    └───────┬───────┘
+│   .bin       │                                                            │
+└──────┬───────┘                                                            │
+       │                                                                    │
+       │ Bytecode Input                                                     │
+       ▼                                                                    │
+┌─────────────────────────────────────────────────────────────────┐         │
+│                   EVM Implementation (Zig)                       │         │
+│                                                                 │         │
+│  ┌──────────────────────────────────────────────────────────┐   │         │
+│  │                Bytecode Loader                           │   │         │
+│  │                                                          │   │         │
+│  │  Read contract.bin                                       │   │         │
+│  │  Parse opcodes                                           │   │         │
+│  └──────────────┬───────────────────────────────────────────┘   │         │
+│                 │                                               │         │
+│                 ▼                                               │         │
+│  ┌──────────────────────────────────────────────────────────┐   │         │
+│  │            256-bit Stack Machine                         │   │◀────────┘
+│  │                                                          │   │ Opcode Spec
+│  │  Stack: [u256; 1024]                                     │   │
+│  │  Operations:                                             │   │
+│  │    PUSH1..PUSH32  → Push bytes to stack                  │   │
+│  │    POP            → Remove top item                      │   │
+│  │    DUP1..DUP16    → Duplicate stack item                 │   │
+│  │    SWAP1..SWAP16  → Swap stack items                     │   │
+│  └──────────────┬───────────────────────────────────────────┘   │
+│                 │                                               │
+│                 ▼                                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Execution Engine                            │   │
+│  │                                                          │   │
+│  │  Arithmetic:  ADD, SUB, MUL, DIV, MOD, EXP               │   │
+│  │  Comparison:  LT, GT, EQ, ISZERO                         │   │
+│  │  Bitwise:     AND, OR, XOR, NOT, SHL, SHR                │   │
+│  │  Memory:      MLOAD, MSTORE, MSTORE8                     │   │
+│  │  Storage:     SLOAD, SSTORE                              │   │
+│  │  Control:     JUMP, JUMPI, PC, JUMPDEST                  │   │
+│  │  Environment: CALLER, CALLVALUE, BLOCKHASH               │   │
+│  │  Calls:       CALL, DELEGATECALL, STATICCALL             │   │
+│  └──────────────┬───────────────────────────────────────────┘   │
+│                 │                                               │
+│                 ▼                                               │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                 Gas Metering                             │   │
+│  │                                                          │   │
+│  │  Track gas consumption per opcode                        │   │
+│  │  Halt on gas limit exceeded                              │   │
+│  └──────────────┬───────────────────────────────────────────┘   │
+│                 │                                               │
+└─────────────────┼───────────────────────────────────────────────┘
+                 │
+                 ▼
+          Execution Result
+      (Stack state, Gas used)
+
+Language: Zig 0.13 • Spec: Ethereum Yellow Paper • Ref: revm, py-evm
+```
+
 ## References
 
 - [Ethereum Yellow Paper](https://ethereum.github.io/yellowpaper/paper.pdf) — Formal specification
