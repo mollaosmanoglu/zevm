@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="zevm logo" width="200"/>
+</p>
+
 # zevm
 
 ![Zig](https://img.shields.io/badge/Zig-0.13-F7A41D)
