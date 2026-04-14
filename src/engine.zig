@@ -1,4 +1,4 @@
-// TO-DO: create small test, understadn everything better, and move to phase 2.
+// TO-DO: create small test,  and move to phase 2.
 
 const std = @import("std");
 pub const EVMError = error{ StopToken, InvalidOpcode, StackOverflow, StackUnderflow, IndexOutOfRange };
